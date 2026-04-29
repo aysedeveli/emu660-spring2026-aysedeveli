@@ -6,3 +6,6 @@
 /.quarto/
 
 **/*.quarto_ipynb
+codes.Rproj
+computer_exam.R
+vizee.R

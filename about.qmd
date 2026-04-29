@@ -3,7 +3,7 @@ title: "About Me"
 sidebar: false 
 ---
 
-#                          ![](images/clipboard-1461095311.png)
+# ![](images/clipboard-1461095311.png)
 
 # Education
 
