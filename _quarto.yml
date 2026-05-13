@@ -36,6 +36,13 @@ website:
         - assignments.qmd
         - assignments/assignment-1.qmd
         - assignments/assignment-2.qmd  
+        
+    - title: "Project"
+      style: "docked"
+      search: true
+      contents:
+         - project.qmd
+         
   page-navigation: true
   back-to-top-navigation: true
   page-footer:
