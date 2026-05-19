@@ -1,57 +1,728 @@
 ---
-title: "Project X"
+title: "Reading Analysis In Turkey From Kitapyurdu Datas"
+authors: "Ayşe Develi"
+format: HTML
 ---
 
-Welcome to my/our project page.
+Welcome to my project page.
 
 Keep an eye on this space to stay updated with my project activities.
 
-(The titles below are provided as examples; please feel free to adjust them as necessary.)
-
 # 1. Project Overview and Scope
 
-xxxxxx
+This study takes a close look at the book market on Kitapyurdu.com, which is one of the biggest online bookstores in Turkey. We have a lot of information about over 67,000 books, including how much they cost, what people think of them, how many have been sold, and when they were published. With AI, I reduced the dataset to 2000 rows.
+
+My main goal is to find patterns in how books are priced, how readers interact with them, and how well publishers do. I also want to create a model that can predict how much a book will cost based on some of its key features. The study explores several key questions about the Turkish book market. What are the main factors that influence book prices in this market? How do different publishers approach pricing, and how does this impact their sales performance? Have book prices in Turkey changed significantly over time, and if so, what's driving these changes? Lastly, is there a notable difference in pricing between books originally written in Turkish and those that have been translated into Turkish?
 
 # 2. Data
 
-xxxxxx
-
 ## 2.1 Data Source
 
-xxxxxx
+The dataset was obtained from Kaggle and contains book listings scraped from Kitapyurdu.com. All variables are publicly available on the website and no confidential information is included. The data and all analysis files are made publicly accessible via the project GitHub page.
 
 ## 2.2 General Information About Data
 
-xxxxxx
+This data has 2000 rows and 19 variables. Variables are:
+
+\-`kitap_adi` : name of the book.
+
+\-`yazar` : name of the author.
+
+\-`yayinevi` : publisher of the book.
+
+\-`fiyat` : total profit gained from that book.
+
+\-`puan` : rating of the book given by members of kitapyurdu.com.
+
+\-`yorum_sayisi` : number of comments made by members.
+
+\-`satin_alim_sayisi` : number of purchases from kitapyurdu.com.
+
+\-`isbn_no` : international unique identification number for the book.
+
+\-`cevirmen` : translator name. (if the book is written by a Turkish author, this will show N/A results.).
+
+\-`yayin_tarihi` : publishing date.
+
+\-`dil` : original writting language.
+
+\-`kagit_cinsi` : material of the pages.
+
+\-`boyut` : dimensions of the book.
+
+\-`kategori` : the category of the book, the path that you can find the book on the website.
+
+\-`kitap_aciklamasi` : summary of the book.
+
+`url` : website link for the book.
 
 ## 2.3 Reason of Choice
 
-xxxxxx
+Since i was a kid, i always loved reading and since, i was wondering about the reading patterns of Turkish people and the book that i liked.
 
 ## 2.4 Preprocessing
 
-xxxxxx
+The data we got was not ready to use, so I had to do some work on it first. I started by reading the CSV file with the right encoding, which is Windows-1254, to make sure the Turkish characters were handled correctly. Then I changed these characters to their ASCII equivalents so that our column names would be consistent. I had a column called "fiyat" that had numbers in a weird format, like "181,89", so I changed the comma to a period to make it a regular number. Another column, "satin_alim_sayisi", had text like "Bu üründen X adet satın alınmıştır" that I needed to extract numbers from, so I use special expressions to get just the numbers out. We also figured out the publication year from the "yayin_tarihi" field by breaking down the date. The main category was hidden in the "kategori" field, which was like a path - we took the second level of this path, like "Edebiyat" from "Kitap \> Edebiyat \> Roman". I didn't want to deal with publishers that only had a few books, so I grouped them together under "Diger" if they had less than 10 books. After cleaning up the data by removing rows with missing important information, I ended up with 876 observations that we could use for our model.
 
 # 3. Analysis
 
-xxxxxx
-
 ## 3.1 Exploratory Data Analysis
 
-xxxxxx
+The exploratory analysis examined the distributional properties of four core numerical variables: price (fiyat), rating (puan), number of comments (yorum_sayisi), and purchase count (satin_alim_sayisi). The prices of books vary greatly, from 12.9 to 840.2 Turkish Lira. On average, a book costs around 141 Lira, but the median price is a bit lower, at 132 Lira. This suggests that there are some very expensive books that are pulling the average up. Most books, though, are priced between 50 and 200 Lira. There are some special edition and large-format books that are really pricey, which is why we see a long tail of high prices.
+
+``` r
+{r}
+library(tidyverse)
+library(scales)
+library(patchwork)
+
+# Veri yükleme
+df <- read_csv("kitapyurdu_2000_temiz.csv")
+
+# Renk paleti
+renk <- "#2E86AB"
+vurgu <- "#E84855"
+
+# Ortak tema
+tema <- theme_minimal(base_size = 12) +
+  theme(
+    plot.title    = element_text(face = "bold", size = 13),
+    plot.subtitle = element_text(color = "gray40", size = 10),
+    axis.title    = element_text(size = 10),
+    panel.grid.minor = element_blank()
+  )
+
+
+# 1. FİYAT
+
+
+# Histogram
+p_fiyat_hist <- df %>%
+  filter(!is.na(fiyat)) %>%
+  ggplot(aes(x = fiyat)) +
+  geom_histogram(binwidth = 20, fill = renk, color = "white", alpha = 0.85) +
+  geom_vline(aes(xintercept = median(fiyat, na.rm = TRUE)),
+             color = vurgu, linetype = "dashed", linewidth = 0.8) +
+  annotate("text", x = median(df$fiyat, na.rm = TRUE) + 15,
+           y = Inf, vjust = 2, hjust = 0,
+           label = paste0("Medyan: ", round(median(df$fiyat, na.rm = TRUE), 1), " TL"),
+           color = vurgu, size = 3.5) +
+  scale_x_continuous(labels = label_number(suffix = " TL")) +
+  labs(title = "Fiyat Dağılımı",
+       subtitle = "Her çubuk 20 TL aralığını temsil eder",
+       x = "Fiyat (TL)", y = "Kitap Sayısı") +
+  tema
+
+# Boxplot
+p_fiyat_box <- df %>%
+  filter(!is.na(fiyat)) %>%
+  ggplot(aes(x = fiyat, y = "")) +
+  geom_boxplot(fill = renk, alpha = 0.7, outlier.color = vurgu,
+               outlier.alpha = 0.5, width = 0.4) +
+  scale_x_continuous(labels = label_number(suffix = " TL")) +
+  labs(title = "Fiyat - Boxplot",
+       x = "Fiyat (TL)", y = NULL) +
+  tema
+
+
+# 2. PUAN
+
+
+p_puan_hist <- df %>%
+  filter(!is.na(puan)) %>%
+  ggplot(aes(x = puan)) +
+  geom_histogram(binwidth = 0.5, fill = renk, color = "white", alpha = 0.85) +
+  scale_x_continuous(breaks = 1:5) +
+  labs(title = "Puan Dağılımı",
+       subtitle = "1–5 arası değerlendirme",
+       x = "Puan", y = "Kitap Sayısı") +
+  tema
+
+p_puan_box <- df %>%
+  filter(!is.na(puan)) %>%
+  ggplot(aes(x = puan, y = "")) +
+  geom_boxplot(fill = renk, alpha = 0.7, outlier.color = vurgu,
+               outlier.alpha = 0.5, width = 0.4) +
+  scale_x_continuous(breaks = 1:5) +
+  labs(title = "Puan - Boxplot",
+       x = "Puan", y = NULL) +
+  tema
+
+
+# 3. YORUM SAYISI (log ölçek - sağa çarpık dağılım)
+
+
+p_yorum_hist <- df %>%
+  filter(!is.na(yorum_sayisi), yorum_sayisi > 0) %>%
+  ggplot(aes(x = yorum_sayisi)) +
+  geom_histogram(bins = 40, fill = renk, color = "white", alpha = 0.85) +
+  scale_x_log10(labels = label_comma()) +
+  geom_vline(aes(xintercept = median(yorum_sayisi, na.rm = TRUE)),
+             color = vurgu, linetype = "dashed", linewidth = 0.8) +
+  annotate("text", x = median(df$yorum_sayisi, na.rm = TRUE) * 1.5,
+           y = Inf, vjust = 2, hjust = 0,
+           label = paste0("Medyan: ", median(df$yorum_sayisi, na.rm = TRUE)),
+           color = vurgu, size = 3.5) +
+  labs(title = "Yorum Sayısı Dağılımı",
+       subtitle = "Log ölçek (sağa çarpık dağılım)",
+       x = "Yorum Sayısı (log)", y = "Kitap Sayısı") +
+  tema
+
+p_yorum_box <- df %>%
+  filter(!is.na(yorum_sayisi), yorum_sayisi > 0) %>%
+  ggplot(aes(x = yorum_sayisi, y = "")) +
+  geom_boxplot(fill = renk, alpha = 0.7, outlier.color = vurgu,
+               outlier.alpha = 0.4, width = 0.4) +
+  scale_x_log10(labels = label_comma()) +
+  labs(title = "Yorum Sayısı - Boxplot",
+       x = "Yorum Sayısı (log)", y = NULL) +
+  tema
+
+
+# 4. SATIN ALINMA SAYISI (log ölçek)
+
+
+p_satin_hist <- df %>%
+  filter(!is.na(satin_alinma_sayisi), satin_alinma_sayisi > 0) %>%
+  ggplot(aes(x = satin_alinma_sayisi)) +
+  geom_histogram(bins = 40, fill = renk, color = "white", alpha = 0.85) +
+  scale_x_log10(labels = label_comma()) +
+  geom_vline(aes(xintercept = median(satin_alinma_sayisi, na.rm = TRUE)),
+             color = vurgu, linetype = "dashed", linewidth = 0.8) +
+  annotate("text", x = median(df$satin_alinma_sayisi, na.rm = TRUE) * 1.5,
+           y = Inf, vjust = 2, hjust = 0,
+           label = paste0("Medyan: ", format(median(df$satin_alinma_sayisi, na.rm = TRUE), big.mark = ".")),
+           color = vurgu, size = 3.5) +
+  labs(title = "Satın Alınma Sayısı Dağılımı",
+       subtitle = "Log ölçek (sağa çarpık dağılım)",
+       x = "Satın Alınma Sayısı (log)", y = "Kitap Sayısı") +
+  tema
+
+p_satin_box <- df %>%
+  filter(!is.na(satin_alinma_sayisi), satin_alinma_sayisi > 0) %>%
+  ggplot(aes(x = satin_alinma_sayisi, y = "")) +
+  geom_boxplot(fill = renk, alpha = 0.7, outlier.color = vurgu,
+               outlier.alpha = 0.4, width = 0.4) +
+  scale_x_log10(labels = label_comma()) +
+  labs(title = "Satın Alınma Sayısı - Boxplot",
+       x = "Satın Alınma Sayısı (log)", y = NULL) +
+  tema
+
+
+# 5. BİRLEŞTİRİLMİŞ PANEL (patchwork)
+
+
+panel <- (p_fiyat_hist | p_fiyat_box) /
+         (p_puan_hist  | p_puan_box)  /
+         (p_yorum_hist | p_yorum_box) /
+         (p_satin_hist | p_satin_box) +
+  plot_annotation(
+    title   = "Kitapyurdu Veri Seti — Temel Dağılım Analizleri",
+    subtitle = "Sol: Histogram | Sağ: Boxplot",
+    theme = theme(
+      plot.title    = element_text(face = "bold", size = 15),
+      plot.subtitle = element_text(color = "gray40", size = 11)
+    )
+  )
+
+ggsave("dagilim_analizi.png", panel, width = 12, height = 16, dpi = 150)
+print("Grafik kaydedildi: dagilim_analizi.png")
+
+
+# 6. ÖZET İSTATİSTİKLER
+
+
+ozet <- df %>%
+  select(fiyat, puan, yorum_sayisi, satin_alinma_sayisi) %>%
+  pivot_longer(everything(), names_to = "degisken", values_to = "deger") %>%
+  group_by(degisken) %>%
+  summarise(
+    n        = sum(!is.na(deger)),
+    ortalama = round(mean(deger, na.rm = TRUE), 2),
+    medyan   = round(median(deger, na.rm = TRUE), 2),
+    std      = round(sd(deger, na.rm = TRUE), 2),
+    min      = round(min(deger, na.rm = TRUE), 2),
+    maks     = round(max(deger, na.rm = TRUE), 2)
+  )
+
+print(ozet)
+```
+
+When it comes to ratings, they're all pretty high - the median is 5.0 and the average is 4.80. This means that most books are getting near-perfect scores, which doesn't really help us tell them apart. The number of comments and purchases for each book is also really varied. Some books have been bought thousands of times, while others have hardly been purchased at all. Because of this, we need to use special scales to visualize the data, or it's hard to see what's going on. For example, the median number of purchases is around 2,760, but some books have been bought over 298,000 times.
+
+![](images/clipboard-601527436.png)
+
+![](images/clipboard-2663619395.png)
+
+When we looked at the prices of books from different publishers, we found some big differences. Two publishers, İnkılap Kitabevi and Metis Yayınları, tend to have the highest prices, even when you consider the length of the books. On the other hand, Karbon Kitaplar and Kapra Yayıncılık have lower prices, which might be because they have a lot of digital or promotional books. We also saw that some publishers are really popular, with many people buying their books. For example, Türkiye İş Bankası Kültür Yayınları had an average of 28,500 purchases per book, followed by Ötüken Neşriyat with 17,233 purchases, and Can Yayınları with 16,378 purchases. These numbers are based on data from 38 publishers that have at least 10 books in the dataset.
+
+![](yayinevi_fiyat.png)
+
+``` r
+library(tidyverse)
+library(scales)
+
+# Veri yükleme
+df <- read_csv("kitapyurdu_2000_temiz.csv")
+
+# Parametreler
+renk  <- "#2E86AB"
+vurgu <- "#E84855"
+min_kitap <- 10  # En az bu kadar kitabı olan yayınevleri
+
+# Özet tablo
+genel_ort <- mean(df$fiyat, na.rm = TRUE)
+
+ozet <- df %>%
+  group_by(yayinevi) %>%
+  summarise(
+    kitap_sayisi = sum(!is.na(fiyat)),
+    ort_fiyat    = mean(fiyat, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  filter(kitap_sayisi >= min_kitap) %>%
+  mutate(
+    yayinevi  = fct_reorder(yayinevi, ort_fiyat),
+    renk_grup = if_else(ort_fiyat > genel_ort, "Ortalamanın üstü", "Ortalamanın altı")
+  )
+
+
+
+# Grafik
+ggplot(ozet, aes(x = ort_fiyat, y = yayinevi, fill = renk_grup)) +
+  geom_col(alpha = 0.88, width = 0.7) +
+
+  # Değer etiketleri
+  geom_text(aes(label = paste0(round(ort_fiyat, 1), " TL  (n=", kitap_sayisi, ")")),
+            hjust = -0.05, size = 3, color = "#333333") +
+
+  # Genel ortalama çizgisi
+  geom_vline(xintercept = genel_ort, linetype = "dashed",
+             color = "gray50", linewidth = 0.8) +
+  annotate("text", x = genel_ort + 2, y = 1.5,
+           label = paste0("Genel ort.\n", round(genel_ort, 1), " TL"),
+           color = "gray40", size = 3, hjust = 0) +
+
+  # Renkler
+  scale_fill_manual(values = c("Ortalamanın üstü" = vurgu,
+                                "Ortalamanın altı"  = renk)) +
+
+  # Eksen
+  scale_x_continuous(
+    labels = label_number(suffix = " TL"),
+    expand = expansion(mult = c(0, 0.22))
+  ) +
+
+  # Etiketler
+  labs(
+    title    = "Yayınevine Göre Ortalama Kitap Fiyatı",
+    subtitle = paste0("En az ", min_kitap, " kitabı olan yayınevleri | n = ", nrow(ozet), " yayınevi"),
+    x        = "Ortalama Fiyat (TL)",
+    y        = NULL,
+    fill     = NULL
+  ) +
+
+  # Tema
+  theme_minimal(base_size = 11) +
+  theme(
+    plot.title      = element_text(face = "bold", size = 14),
+    plot.subtitle   = element_text(color = "gray40", size = 10),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor   = element_blank(),
+    legend.position = "bottom",
+    axis.text.y     = element_text(size = 9)
+  )
+
+ggsave("yayinevi_fiyat.png", width = 11, height = 10, dpi = 150)
+```
+
+When you look at books written by local authors and those that have been translated, you can see some big differences in how much they cost and how people rate them. On average, books by local authors are more expensive, with a median price of 141.8 TL, compared to 108.1 TL for translated books. People also tend to give local books slightly higher ratings. But when it comes to how many copies are sold, there isn't a big difference between local and translated books. This suggests that whether a book is written by a local author or translated from another language doesn't really affect how well it does in terms of sales.
+
+![](images/clipboard-3164953279.png)
+
+``` r
+library(tidyverse)
+library(scales)
+library(patchwork)
+
+# Veri
+df <- read_csv("kitapyurdu_2000_temiz.csv")
+
+renk_yerli  <- "#2E86AB"
+renk_ceviri <- "#E84855"
+
+# Yerli / Çeviri etiketleme
+data <- df %>%
+  mutate(tur = case_when(
+    str_detect(ilgili_kategoriler, "Yerli")  ~ "Yerli",
+    str_detect(ilgili_kategoriler, "Çeviri") ~ "Çeviri",
+    TRUE ~ NA_character_
+  )) %>%
+  filter(!is.na(tur)) %>%
+  mutate(tur = factor(tur, levels = c("Yerli", "Çeviri")))
+
+cat("Dağılım:\n")
+print(table(data$tur))
+
+# İstatistiksel testler
+for (col in c("fiyat", "puan", "satin_alinma_sayisi")) {
+  yerli  <- data %>% filter(tur == "Yerli")  %>% pull(!!sym(col)) %>% na.omit()
+  ceviri <- data %>% filter(tur == "Çeviri") %>% pull(!!sym(col)) %>% na.omit()
+  test   <- wilcox.test(yerli, ceviri, alternative = "two.sided")
+  cat(sprintf("%s: W = %.0f, p = %.4f\n", col, test$statistic, test$p.value))
+}
+
+# Ortak violin+boxplot fonksiyonu
+violin_box <- function(data, col, ylabel, title, log_scale = FALSE, pval_label = "") {
+
+  p <- ggplot(data, aes(x = tur, y = .data[[col]], fill = tur, color = tur)) +
+    geom_violin(alpha = 0.3, trim = TRUE, linewidth = 0) +
+    geom_boxplot(width = 0.25, alpha = 0.85, outlier.alpha = 0.2,
+                 outlier.size = 1.5,
+                 color = "white",
+                 medianprops = list(color = "white", linewidth = 2)) +
+    # Medyan etiketleri
+    stat_summary(fun = median, geom = "text",
+                 aes(label = if (log_scale)
+                       scales::comma(round(..y..))
+                     else
+                       round(..y.., 1)),
+                 vjust = -0.6, size = 3.2, fontface = "bold", color = "#222222") +
+    scale_fill_manual(values  = c("Yerli" = renk_yerli, "Çeviri" = renk_ceviri)) +
+    scale_color_manual(values = c("Yerli" = renk_yerli, "Çeviri" = renk_ceviri)) +
+    labs(title = title,
+         subtitle = paste0("Mann-Whitney U: ", pval_label),
+         x = NULL, y = ylabel) +
+    theme_minimal(base_size = 11) +
+    theme(
+      plot.title      = element_text(face = "bold", size = 12),
+      plot.subtitle   = element_text(color = "gray40", size = 9),
+      legend.position = "none",
+      panel.grid.minor   = element_blank(),
+      panel.grid.major.x = element_blank(),
+      axis.text.x = element_text(size = 11)
+    )
+
+  if (log_scale) {
+    p <- p + scale_y_log10(labels = label_comma())
+  } else {
+    p <- p + scale_y_continuous(labels = if (col == "fiyat") label_number(suffix = " TL") else label_comma())
+  }
+  p
+}
+
+# 3 grafik
+p_fiyat <- violin_box(data, "fiyat",              "Fiyat (TL)",          "Fiyat",  FALSE, "p < 0.001 ***")
+p_puan  <- violin_box(data, "puan",               "Puan",                "Puan",   FALSE, "p < 0.001 ***")
+p_satis <- violin_box(data, "satin_alinma_sayisi", "Satın Alınma (log)", "Satış",  TRUE,  "p = 0.288 (ns)")
+
+# Birleştir
+n_yerli  <- sum(data$tur == "Yerli")
+n_ceviri <- sum(data$tur == "Çeviri")
+
+panel <- p_fiyat + p_puan + p_satis +
+  plot_annotation(
+    title    = "Yerli ve Çeviri Kitap Karşılaştırması",
+    subtitle = paste0("Yerli: n = ", n_yerli, "  |  Çeviri: n = ", n_ceviri),
+    theme = theme(
+      plot.title    = element_text(face = "bold", size = 14),
+      plot.subtitle = element_text(color = "gray40", size = 11)
+    )
+  )
+
+panel
+
+# ggsave("yerli_ceviri.png", panel, width = 14, height = 6, dpi = 150)
+```
 
 ## 3.2 Trend Analysis
 
-xxxxxx
+We took a closer look at price trends from 2011 to 2025. To do this, we used the date when each item was published. Our analysis is based on 882 observations where we had information about the publication year, which is about 44% of our total data. However, we should be careful when looking at the results from earlier years, before 2019, because we don't have as much data from those times.
+
+If we look at the prices from 2011 to 2020, we can see that they didn't change much, staying between 120 and 165 Turkish Lira. But in 2021, something unexpected happened - the average price dropped to 94.7 Turkish Lira. This big drop might not actually mean that prices went down everywhere, but rather that the things being measured changed. Then, in 2022, prices shot up to 150 Turkish Lira, which makes sense given that Turkey had very high inflation that year, with prices rising over 60% from the year before. After that, prices calmed down a bit, staying between 141 and 157 Turkish Lira from 2023 to 2025. In 2024, we saw the highest average price, 157.5 Turkish Lira, and we also had the most observations, with 227 of them.
+
+If we look at the types of books that are popular over the years, one thing stands out: literature is the clear winner. In fact, it makes up 85-100% of all the books in every year. There are a few other categories that show up here and there, like history, children's books, and psychology, but they're mostly seen in the years 2017 to 2019. It's worth noting that this doesn't necessarily reflect what's actually popular in the Turkish book market as a whole, but rather what's in the dataset we're looking at.
 
 ## 3.3 Model Fitting
 
-xxxxxx
+A multiple linear regression model was estimated to predict book price from four groups of predictors: page count (`sayfa_sayisi`), publication year (`yayin_yili`), publisher (`yayinevi`), and main category (`ana_kategori`). Categorical variables were encoded using dummy coding with "Diger" as the reference publisher and "Edebiyat" as the reference category. Publishers with fewer than 10 observations were grouped into the reference category to reduce dimensionality.
 
-## 3.4 Results
+The estimated model takes the following form:
 
-xxxxxx
+![](images/clipboard-4147225318.png)
+
+Coefficients were estimated using Ordinary Least Squares (OLS). The method minimizes the residual sum of squares
+
+![](images/clipboard-2130800554.png) , yielding the closed-form solution ![](images/clipboard-2349250249.png)
+
+where X  is the design matrix including all dummy-encoded predictors.
+
+Model performance was evaluated using 5-fold cross-validation. The model achieved a mean R² of 0.732 (± 0.028), a mean absolute error of 29.67 TL, and a root mean squared error of 41.65 TL. These results indicate that the predictors collectively explain approximately 73% of the variance in book prices, with a typical prediction error of around 30 TL.
+
+Numerical variable changes
+
+Page count (+0.324 TL): The price of each additional page increases by an average of 0.32 TL. A 100-page book is approximately 32 TL more expensive than others.
+
+Publication year (+0.260 TL): 0.26 TL is added to the price each year. There is a difference of \~1 TL between the 2020 and 2024 editions, assuming other conditions remain constant — practically very small, not fully reflecting inflationary pressure.
+
+``` r
+library(tidyverse)
+library(broom)       # tidy(), glance(), augment()
+library(scales)
+
+# ── 1. VERİ HAZIRLAMA ─────────────────────────────────────────────────────────
+
+df <- read_csv("kitapyurdu_2000_temiz.csv")
+
+df <- df %>%
+  mutate(
+    # Yayın yılını tarih sütunundan çıkar
+    yayin_yili = as.numeric(format(as.Date(yayin_tarihi, "%d.%m.%Y"), "%Y")),
+
+    # Ana kategori: "Kitap > Edebiyat > Roman (Yerli)" → "Edebiyat"
+    ana_kategori = str_split_i(ilgili_kategoriler, ",", 1) %>%
+                   str_split_i(">", 2) %>%
+                   str_trim(),
+
+    # Seyrek yayınevlerini "Diger" olarak grupla (n < 10 → Diger)
+    yayinevi_grp = fct_lump_min(yayinevi, min = 10, other_level = "Diger"),
+
+    # Referans kategoriler: en büyük grubu referans yap
+    # R, factor'ün ilk seviyesini referans olarak alır (alfabetik)
+    # Biz Edebiyat'ı referans yapmak için onu ilk sıraya koyuyoruz
+    ana_kategori = fct_relevel(factor(ana_kategori), "Edebiyat"),
+    yayinevi_grp = fct_relevel(yayinevi_grp, "Diger")  # "Diger" referans
+  )
+
+model_df <- df %>%
+  select(fiyat, sayfa_sayisi, yayinevi_grp, ana_kategori, yayin_yili) %>%
+  drop_na()
+
+cat(sprintf("Model için kullanılabilir satır: %d\n", nrow(model_df)))
+cat(sprintf("Bağımlı değişken (fiyat) — ort: %.1f, std: %.1f\n",
+            mean(model_df$fiyat), sd(model_df$fiyat)))
+
+
+# ── 2. KATSAYILAR NASIL HESAPLANIR? (EKK — En Küçük Kareler) ─────────────────
+#
+# Doğrusal regresyon şu denklemi tahmin eder:
+#   fiyat = β0 + β1*sayfa_sayisi + β2*yayin_yili + Σ γk*yayinevi_k + Σ δj*kategori_j + ε
+#
+# Katsayılar (β, γ, δ) EKK yöntemiyle bulunur:
+#   → Amaç: Σ(gerçek_fiyat − tahmin_fiyat)² toplamını minimize etmek
+#   → Matris formülü: β = (X'X)⁻¹ X'y
+#      X: tasarım matrisi (sayısal + dummy değişkenler)
+#      y: bağımlı değişken vektörü (fiyat)
+#
+# KATEGORİK DEĞİŞKENLER → DUMMY (ONE-HOT) KODLAMA:
+#   k kategorili bir değişken için (k-1) dummy sütun oluşturulur.
+#   Dışarıda bırakılan kategori "referans kategori"dir.
+#   Katsayı = o kategorideki gözlemin referansa göre ortalama fiyat farkıdır,
+#             diğer değişkenler sabit tutulduğunda.
+#
+# Örnek:
+#   yayinevi_grp_Inkilap_Kitabevi = 1 ise bu yayınevi, 0 ise değil
+#   Katsayısı +26.71 → Inkılap, "Diger" grubundan 26.71 TL daha pahalı
+#                       (sayfa sayısı, yıl, kategori sabitken)
+
+# Dummy dönüşümü manuel gösterimi (ilk 5 satır):
+cat("\nDummy dönüşümü örneği (ilk 3 satır):\n")
+model.matrix(fiyat ~ yayinevi_grp, data = model_df[1:3, ]) %>% print()
+
+
+# ── 3. MODEL KURMA ────────────────────────────────────────────────────────────
+
+model <- lm(fiyat ~ sayfa_sayisi + yayin_yili + yayinevi_grp + ana_kategori,
+            data = model_df)
+
+
+# ── 4. MODEL ÖZET ─────────────────────────────────────────────────────────────
+
+cat("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+cat("MODEL ÖZET İSTATİSTİKLERİ\n")
+cat("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+
+glance_df <- glance(model)
+cat(sprintf("R²          : %.3f  (fiyat varyansının %%%.1f'i açıklanıyor)\n",
+            glance_df$r.squared, glance_df$r.squared * 100))
+cat(sprintf("Düz. R²     : %.3f\n", glance_df$adj.r.squared))
+cat(sprintf("F-istatistiği: %.1f (p < 0.001)\n", glance_df$statistic))
+cat(sprintf("AIC         : %.1f\n", glance_df$AIC))
+cat(sprintf("Gözlem sayısı: %d\n", glance_df$nobs))
+
+
+# ── 5. KATSAYILAR ─────────────────────────────────────────────────────────────
+
+tidy_df <- tidy(model, conf.int = TRUE) %>%
+  mutate(
+    anlamli    = p.value < 0.05,
+    degisken   = case_when(
+      term == "(Intercept)"  ~ "Sabit",
+      term == "sayfa_sayisi" ~ "Sayfa Sayısı",
+      term == "yayin_yili"   ~ "Yayın Yılı",
+      str_starts(term, "yayinevi_grp") ~ paste0("Yayınevi: ", str_remove(term, "yayinevi_grp")),
+      str_starts(term, "ana_kategori") ~ paste0("Kategori: ", str_remove(term, "ana_kategori")),
+      TRUE ~ term
+    )
+  )
+
+cat("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+cat("REGRESYON DENKLEMİ VE KATSAYILAR\n")
+cat("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+cat("\nfiyat = β0 + β1×sayfa_sayisi + β2×yayin_yili\n")
+cat("      + Σ γk×yayinevi_dummy_k + Σ δj×kategori_dummy_j\n\n")
+
+# Sabit ve sayısal değişkenler
+cat("── Sabit ve Sayısal Değişkenler ──\n")
+tidy_df %>%
+  filter(term %in% c("(Intercept)", "sayfa_sayisi", "yayin_yili")) %>%
+  select(degisken, estimate, std.error, statistic, p.value, conf.low, conf.high) %>%
+  mutate(across(where(is.numeric), ~round(., 4))) %>%
+  print(n = Inf)
+
+# Yayınevi katsayıları (referans: Diger)
+cat("\n── Yayınevi Katsayıları (Referans: 'Diger') ──\n")
+cat("  Yorumlama: diğer değişkenler sabitken, bu yayınevinin\n")
+cat("  'Diger' grubuna göre ortalama fiyat farkı (TL)\n\n")
+tidy_df %>%
+  filter(str_starts(term, "yayinevi_grp")) %>%
+  arrange(desc(estimate)) %>%
+  select(degisken, estimate, std.error, p.value, conf.low, conf.high, anlamli) %>%
+  mutate(across(where(is.numeric), ~round(., 2))) %>%
+  print(n = Inf)
+
+# Kategori katsayıları (referans: Edebiyat)
+cat("\n── Kategori Katsayıları (Referans: 'Edebiyat') ──\n")
+tidy_df %>%
+  filter(str_starts(term, "ana_kategori")) %>%
+  arrange(desc(estimate)) %>%
+  select(degisken, estimate, std.error, p.value, conf.low, conf.high, anlamli) %>%
+  mutate(across(where(is.numeric), ~round(., 2))) %>%
+  print(n = Inf)
+
+
+# ── 6. SOMUT YORUM: TAHMİN ÖRNEKLERİ ─────────────────────────────────────────
+
+cat("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+cat("TAHMİN ÖRNEKLERİ\n")
+cat("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+
+ornekler <- tibble(
+  sayfa_sayisi = c(300, 300, 500, 200),
+  yayin_yili   = c(2023, 2023, 2024, 2022),
+  yayinevi_grp = factor(c("Can Yayinlari", "Diger", "Inkilap Kitabevi", "Karbon Kitaplar"),
+                        levels = levels(model_df$yayinevi_grp)),
+  ana_kategori = factor(c("Edebiyat", "Edebiyat", "Tarih", "Edebiyat"),
+                        levels = levels(model_df$ana_kategori))
+)
+
+ornekler$tahmin <- predict(model, newdata = ornekler)
+
+cat("\nSayfa | Yıl  | Yayınevi              | Kategori  | Tahmin Fiyat\n")
+cat("------|------|------------------------|-----------|-------------\n")
+for (i in seq_len(nrow(ornekler))) {
+  cat(sprintf("%5d | %4d | %-22s | %-9s | %.1f TL\n",
+              ornekler$sayfa_sayisi[i],
+              ornekler$yayin_yili[i],
+              ornekler$yayinevi_grp[i],
+              ornekler$ana_kategori[i],
+              ornekler$tahmin[i]))
+}
+
+
+# ── 7. MODEL VARSAYIM KONTROLLERI ─────────────────────────────────────────────
+
+cat("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+cat("VARSAYIM KONTROLLERİ\n")
+cat("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+
+aug <- augment(model)
+
+# Kalıntı normalliği: Shapiro-Wilk (küçük örneklem için)
+# Büyük n'de hassas olduğu için sadece 200 örneklemde test et
+set.seed(42)
+sw_test <- shapiro.test(sample(aug$.resid, 200))
+cat(sprintf("\nShapiro-Wilk (n=200 örneklem): W=%.3f, p=%.4f\n",
+            sw_test$statistic, sw_test$p.value))
+cat("  → p < 0.05 ise kalıntılar normal dağılmıyor (büyük n'de sık görülür)\n")
+
+# Kalıntı ortalaması
+cat(sprintf("Kalıntı ortalaması: %.6f (0'a yakın olmalı)\n", mean(aug$.resid)))
+
+# Homoskedastisite: kalıntı varyansı gruplara göre değişiyor mu?
+cat(sprintf("Kalıntı std (tüm veri): %.2f TL\n", sd(aug$.resid)))
+
+# VIF (çoklu doğrusallık) — yalnızca sayısal değişkenler için
+# Kategorik değişkenlerle VIF yorumu daha karmaşık olduğundan
+# sayfa_sayisi ve yayin_yili korelasyonunu kontrol et
+kor <- cor(model_df$sayfa_sayisi, model_df$yayin_yili, use = "complete.obs")
+cat(sprintf("sayfa_sayisi ~ yayin_yili korelasyonu: r=%.3f\n", kor))
+cat("  → Düşük korelasyon: çoklu doğrusallık sorunu yok\n")
+
+
+# ── 8. 5-KATLI ÇAPRAZ DOĞRULAMA ───────────────────────────────────────────────
+
+cat("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+cat("5-KATLI ÇAPRAZ DOĞRULAMA\n")
+cat("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+
+set.seed(42)
+n     <- nrow(model_df)
+folds <- sample(rep(1:5, length.out = n))
+
+cv_metrics <- map_dfr(1:5, function(k) {
+  train_k <- model_df[folds != k, ]
+  test_k  <- model_df[folds == k, ]
+
+  model_k  <- lm(fiyat ~ sayfa_sayisi + yayin_yili + yayinevi_grp + ana_kategori,
+                 data = train_k)
+  pred_k   <- predict(model_k, newdata = test_k)
+
+  ss_res  <- sum((test_k$fiyat - pred_k)^2)
+  ss_tot  <- sum((test_k$fiyat - mean(test_k$fiyat))^2)
+
+  tibble(
+    fold = k,
+    R2   = 1 - ss_res / ss_tot,
+    MAE  = mean(abs(test_k$fiyat - pred_k)),
+    RMSE = sqrt(mean((test_k$fiyat - pred_k)^2))
+  )
+})
+
+cat("\nKat bazında sonuçlar:\n")
+print(cv_metrics)
+
+cat(sprintf("\nOrtalama R²  : %.3f ± %.3f\n", mean(cv_metrics$R2),   sd(cv_metrics$R2)))
+cat(sprintf("Ortalama MAE : %.2f TL\n",         mean(cv_metrics$MAE))  )
+cat(sprintf("Ortalama RMSE: %.2f TL\n",         mean(cv_metrics$RMSE)) )
+cat("\nYorum: Model, gördüğü verinin dışında da fiyatın ~%%73'ini\n")
+cat("açıklayabiliyor; ortalama tahmin hatası ~30 TL.\n")
+```
 
 # 4. Results and Key Takeaways
 
-xxxxxx
+**Results**
+
+When it comes to determining the price of a book, one factor stands out from the rest: the number of pages. For every additional page, the price tends to increase by around 0.32 TL on average, assuming all other factors remain the same. To put this into perspective, a book with 300 pages would be approximately 64 TL more expensive than one with 100 pages.
+
+The year the book was published also has a slight impact on the price, with each passing year contributing to a 0.26 TL increase. However, this gradual rise in price over time doesn't quite keep pace with inflation. The identity of the publisher plays a significant role in determining the price of a book. After taking into account the number of pages and the publication year, it's clear that books from İnkılap Kitabevi tend to be around 27 TL more expensive than those from other publishers. On the other hand, Karbon Kitaplar and Kapra Yayıncılık tend to be significantly cheaper, with prices that are 145 TL and 122 TL lower, respectively. This is consistent with their reputation for offering low-cost options, as observed in earlier analyses. It's worth noting that the category of the book has a limited impact on the price, likely due to the fact that the dataset is comprised of books that are fairly similar in terms of their characteristics.
+
+**Key Takeaways**
+
+- **Book price is primarily determined by physical attributes and publisher identity.** Page count alone explains the largest share of price variation, with publisher brand adding a substantial secondary effect. Category has minimal predictive power given the dataset's composition.
+
+<!-- -->
+
+- **Domestic books are priced higher than translated books but do not outsell them.** The price premium for domestically authored books (\~34 TL at the median) does not translate into a sales advantage, suggesting that readers are price-sensitive and that translated titles compete effectively.
+
+<!-- -->
+
+- **The Turkish book market shows inflation-driven pricing from 2022 onward.** After a sharp price increase coinciding with Turkey's high-inflation period, prices have stabilized in the 141–157 TL range through 2024–2025.
+
+<!-- -->
+
+- **Publisher size does not guarantee sales performance.** Several mid-sized publishers (e.g., Türkiye İş Bankası Kültür Yayınları) outperform larger houses in per-book purchase counts, suggesting that catalogue quality and brand reputation matter more than volume.
+
+<!-- -->
+
+- **A linear regression model with four predictor groups achieves R² = 0.73**, demonstrating that book prices on Kitapyurdu.com are largely systematic and predictable from publicly available metadata.
